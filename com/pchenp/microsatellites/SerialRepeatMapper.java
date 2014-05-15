@@ -17,41 +17,11 @@ public class SerialRepeatMapper extends RepeatMapper<LinkedList<ShortTandemRepea
 	public SerialRepeatMapper(int bufSize, int minPat, int maxPat) {
 		super(bufSize, minPat, maxPat);
 		repeatMap = new HashMap<String, LinkedList<ShortTandemRepeat>>();
-//		LinkedList<byte[]> perms = allPerms();
-//		Iterator<byte[]> iter = perms.iterator();
-//		while (iter.hasNext()) {
-//			byte[] perm = iter.next();
-//			repeatMap.put(perm, new LinkedList<ShortTandemRepeat>());
-//		}
 	}
 
 	@Override
 	public HashMap<String, LinkedList<ShortTandemRepeat>> getRepeatMap() {
 		return (HashMap<String, LinkedList<ShortTandemRepeat>>) repeatMap;
-	}
-	
-	private class MapParam {
-		public long bufOffset;
-		public LinkedList<Byte> history;
-		public byte[] repeat;
-		public int repeatIdx;
-		public long repeatPos;
-		public int numRepeat;
-		public boolean gtFlag;
-		public boolean crFlag;
-		public boolean lfFlag;
-		
-		public MapParam(long bufOffset, LinkedList<Byte> history, byte[] repeat, int repeatIdx, long repeatPos, int numRepeat, boolean gtFlag, boolean crFlag, boolean lfFlag) {
-			this.bufOffset = bufOffset;
-			this.history = history;
-			this.repeat = repeat;
-			this.repeatIdx = repeatIdx;
-			this.repeatPos = repeatPos;
-			this.numRepeat = numRepeat;
-			this.gtFlag = gtFlag;
-			this.crFlag = crFlag;
-			this.lfFlag = lfFlag;
-		}
 	}
 	
 	private boolean validBase(byte b) {
@@ -72,13 +42,16 @@ public class SerialRepeatMapper extends RepeatMapper<LinkedList<ShortTandemRepea
 			bis = new BufferedInputStream(is);
 			System.out.println("Opened \"" + fileName + "\"");
 			byte[] buf = new byte[readBufSize];
-			bis.read(buf);
-			MapParam next = mapBuf(buf, null);
+			int numBytes = bis.read(buf);
+			MapParam next = mapBuf(buf, numBytes, null);
 			while (bis.available() > 0) {
-				bis.read(buf);
-				next = mapBuf(buf, next);
+				numBytes = bis.read(buf);
+				next = mapBuf(buf, numBytes, next);
 			}
 			bis.close();
+			if (next.repeatFlag) {
+				insertRepeat(next.chr, next.repeat, next.numRepeat, next.repeatPos);
+			}
 		} catch (Exception e) {
 			e.printStackTrace();
 		} finally {
@@ -91,45 +64,94 @@ public class SerialRepeatMapper extends RepeatMapper<LinkedList<ShortTandemRepea
 			}
 		}
 	}
+
+	private class MapParam {
+		public long seqPos;
+		public boolean gtFlag;
+		public boolean crFlag;
+		public boolean lfFlag;
+		public boolean repeatFlag;
+		public LinkedList<Byte> chrHistory;
+		public LinkedList<Byte> repeatHistory;
+		public byte[] chr;
+		public byte[] repeat;
+		public int repeatIdx;
+		public long repeatPos;
+		public int numRepeat;
+		
+		public MapParam(
+				long seqPos,
+				boolean gtFlag,
+				boolean crFlag,
+				boolean lfFlag,
+				boolean repeatFlag,
+				LinkedList<Byte> chrHistory,
+				LinkedList<Byte> repeatHistory,
+				byte[] chr,
+				byte[] repeat,
+				int repeatIdx,
+				long repeatPos,
+				int numRepeat
+				) {
+			this.seqPos = seqPos;
+			this.gtFlag = gtFlag;
+			this.crFlag = crFlag;
+			this.lfFlag = lfFlag;
+			this.repeatFlag = repeatFlag;
+			this.chrHistory = chrHistory;
+			this.repeatHistory = repeatHistory;
+			this.chr = chr;
+			this.repeat = repeat;
+			this.repeatIdx = repeatIdx;
+			this.repeatPos = repeatPos;
+			this.numRepeat = numRepeat;
+		}
+	} 
 	
-	public MapParam mapBuf(byte[] buf, MapParam params) {
+	public MapParam mapBuf(byte[] buf, int numBytes, MapParam params) {
 		int i, j;
-		int bufSize = buf.length;
-		long bufOffset;
-		LinkedList<Byte> history = null;
-		byte[] curRepeat;
-		int curRepeatIdx = -1;
-		long curRepeatPos = -1;
-		int numRepeat = -1;
-		int seqPos = 0;
-		boolean foundRepeat, gtFlag, crFlag, lfFlag;
-		LinkedList<Byte> chrHistory = null;
-		byte[] curChr;
+		int bufSize = numBytes;
+		long seqPos = 0;
+		boolean gtFlag;
+		boolean crFlag;
+		boolean lfFlag;
+		boolean repeatFlag;
+		LinkedList<Byte> chrHistory;
+		LinkedList<Byte> repeatHistory;
+		byte[] chr;
+		byte[] repeat;
+		int repeatIdx;
+		long repeatPos;
+		int numRepeat;
 		if (params == null) {
-			history = new LinkedList<Byte>();
-			for (i = 0; i < maxPat*2; i++) {
-				history.add((byte) 0);
-			}
-			bufOffset = 0;
+			seqPos = 0;
 			gtFlag = false;
 			crFlag = false;
 			lfFlag = true;
+			repeatFlag = false;
+			repeatHistory = new LinkedList<Byte>();
+			for (i = 0; i < maxPat*2; i++) {
+				repeatHistory.add((byte) 0);
+			}
+			chrHistory = null;
+			chr = null;
+			repeat = null;
+			repeatIdx = -1;
+			repeatPos = -1;
+			numRepeat = -1;
 		} else {
-			history = params.history;
-			bufOffset = params.bufOffset;
+			seqPos = params.seqPos;
 			gtFlag = params.gtFlag;
 			crFlag = params.crFlag;
 			lfFlag = params.lfFlag;
-		}
-		if (params == null || params.repeat == null) {
-			curRepeat = null;
-			foundRepeat = false;
-		} else {
-			curRepeat = params.repeat;
-			curRepeatIdx = params.repeatIdx;
-			curRepeatPos = params.repeatPos;
+			repeatFlag = params.repeatFlag;
+			repeatHistory = params.repeatHistory;
+			chrHistory = params.chrHistory;
+			chr = params.chr;
+			repeat = params.repeat;
+			repeatIdx = params.repeatIdx;
+			repeatPos = params.repeatPos;
 			numRepeat = params.numRepeat;
-			foundRepeat = true;
 		}
 		for (i = 0; i < bufSize; i++) {
 			if (gtFlag) {
@@ -144,9 +166,9 @@ public class SerialRepeatMapper extends RepeatMapper<LinkedList<ShortTandemRepea
 				}
 				if (gtFlag) {
 					int chrLen = chrHistory.size();
-					curChr = new byte[chrLen];
+					chr = new byte[chrLen];
 					for (j = 0; j < chrLen; j++) {
-						curChr[j] = chrHistory.get(j);
+						chr[j] = chrHistory.get(j);
 					}
 					chrHistory = null;
 					gtFlag = false;
@@ -170,58 +192,42 @@ public class SerialRepeatMapper extends RepeatMapper<LinkedList<ShortTandemRepea
 				continue;
 			}
 			if (!validBase(buf[i])) {
-//				throw new RuntimeException("Invalid Char: " + (char) buf[i]);
+				throw new RuntimeException("Invalid Char: " + (char) buf[i]);
 			}
-			history.remove();
-			history.add(buf[i]);
-			if (!foundRepeat) {
-				if ((curRepeat = findRepeat(history)) != null) {
-					foundRepeat = true;
-					curRepeatIdx = 0;
-					curRepeatPos = bufOffset + seqPos - 2*curRepeat.length + 1;
+			repeatHistory.remove();
+			repeatHistory.add(buf[i]);
+			if (!repeatFlag) {
+				if ((repeat = findRepeat(repeatHistory)) != null) {
+					repeatFlag = true;
+					repeatIdx = 0;
+					repeatPos = seqPos - 2*repeat.length + 1;
 					numRepeat = 2;
 				}
 			} else {
-				if (curRepeat[curRepeatIdx] != buf[i]) {
-					foundRepeat = false;
-					if (numRepeat >= Constants.MIN_REPEATS) {
-						LinkedList<ShortTandemRepeat> repeatList;
-						String keyCurRepeat = new String(curRepeat);
-						if ((repeatList = repeatMap.get(keyCurRepeat)) == null) {
-							repeatList = new LinkedList<ShortTandemRepeat>();
-							repeatList.add(new ShortTandemRepeat(curRepeat, curRepeatPos, numRepeat));
-							repeatMap.put(keyCurRepeat, repeatList);
-						} else {
-							repeatList.add(new ShortTandemRepeat(curRepeat, curRepeatPos, numRepeat));	
-						}
-					}
+				if (repeat[repeatIdx] != buf[i]) {
+					repeatFlag = false;
+					insertRepeat(chr, repeat, numRepeat, repeatPos);
 				} else {
-					curRepeatIdx++;
-					if (curRepeatIdx > curRepeat.length-1) {
-						curRepeatIdx = 0;
+					repeatIdx++;
+					if (repeatIdx > repeat.length-1) {
+						repeatIdx = 0;
 						numRepeat++;	
 					}
 				}
 			}
 			seqPos++;
 		}
-		MapParam next;
-		if (foundRepeat) {
-			next = new MapParam(bufOffset+i, history, curRepeat, curRepeatIdx, curRepeatPos, numRepeat, gtFlag, crFlag, lfFlag);
-		} else {
-			next = new MapParam(bufOffset+i, history, null, -1, -1, -1, gtFlag, crFlag, lfFlag);
-		}
-		return next;
+		return new MapParam(seqPos, gtFlag, crFlag, lfFlag, repeatFlag, chrHistory, repeatHistory, chr, repeat, repeatIdx, repeatPos, numRepeat);
 	}
 	
-	public byte[] findRepeat(LinkedList<Byte> historyList) {
+	protected byte[] findRepeat(LinkedList<Byte> repeatHistory) {
 		int i, j;
 		int first, second;
-		int historyLen = historyList.size();
+		int historyLen = repeatHistory.size();
 		boolean foundFlag;
 		byte[] history = new byte[historyLen];
 		for (i = 0; i < historyLen; i++) {
-			history[i] = historyList.get(i).byteValue();
+			history[i] = repeatHistory.get(i).byteValue();
 		}
 		for (i = minPat; i <= maxPat; i++) {
 			first = historyLen - 2*i;
@@ -244,4 +250,13 @@ public class SerialRepeatMapper extends RepeatMapper<LinkedList<ShortTandemRepea
 		return null;
 	}
 
+	private void insertRepeat(byte[] chr, byte[] repeat, int numRepeat, long repeatPos) {
+		LinkedList<ShortTandemRepeat> repeatList;
+		String keyCurRepeat = new String(repeat);
+		if ((repeatList = repeatMap.get(keyCurRepeat)) == null) {
+			repeatList = new LinkedList<ShortTandemRepeat>();
+			repeatMap.put(keyCurRepeat, repeatList);
+		}
+		repeatList.add(new ShortTandemRepeat(chr, repeat, numRepeat, repeatPos));
+	}
 }

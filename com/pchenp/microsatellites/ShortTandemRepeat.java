@@ -12,31 +12,24 @@ import java.io.UnsupportedEncodingException;
  */
 public class ShortTandemRepeat implements Serializable {
 	
-	private byte[] pattern;
-	private long position;
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 1L;
+	private byte[] chr;
+	private byte[] sequence;
 	private int repeats;
+	private long position;
 	
-	ShortTandemRepeat(byte[] pattern, long position, int repeats) {
-		this.pattern = pattern;
+	ShortTandemRepeat(byte[] chr, byte[] sequence, int repeats, long position) {
+		this.chr = chr;
+		this.sequence = sequence;
 		this.position = position;
 		this.repeats = repeats;
 	}
 	
-	public byte[] getPattern() {
-		return pattern;
-	}
-	
-	public long getPosition() {
-		return position;
-	}
-	
-	public int getRepeats() {
-		return repeats;
-	}
-	
 	public String toString() {
-		String str = "";
-		str += new String(pattern) + ' ' + Long.valueOf(position).toString() + ' ' + repeats;
+		String str = new String(chr) + ',' + new String(sequence) + ',' + repeats + ',' + Long.valueOf(position).toString();
 		return str;
 	}
 }
