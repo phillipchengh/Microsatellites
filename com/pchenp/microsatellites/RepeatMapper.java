@@ -1,7 +1,6 @@
 package com.pchenp.microsatellites;
 
 import java.io.File;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -17,22 +16,19 @@ public abstract class RepeatMapper<T extends List<ShortTandemRepeat>> {
 	protected int readBufSize;
 	protected int minPat;
 	protected int maxPat;
-	protected Map<String, T> repeatMap;
+	protected int minRepeats;
 	
-	protected RepeatMapper() {
-		this(Constants.READ_BUF_SIZE, Constants.MIN_PAT_LEN, Constants.MAX_PAT_LEN);
-	}
-	
-	protected RepeatMapper(int bufSize, int minPat, int maxPat) {
+	protected RepeatMapper(int bufSize, int minPat, int maxPat, int minRepeats) {
 		this.readBufSize = bufSize;
 		this.minPat = minPat;
 		this.maxPat = maxPat;
+		this.minRepeats = minRepeats;
 	}
 	
 	protected LinkedList<byte[]> allPerms() {
 		int i, j, k;
-		byte[] bases = Constants.BASES;
-		int baseNum = Constants.BASES.length;
+		byte[] bases = Default.BASES;
+		int baseNum = Default.BASES.length;
 		int subPerm = 1;
 		int numLens = maxPat - minPat + 1;
 		int[] numPatLenPerms = new int[numLens];
@@ -121,10 +117,6 @@ public abstract class RepeatMapper<T extends List<ShortTandemRepeat>> {
 		return true;
 	}
 	
-	abstract public HashMap<String, LinkedList<ShortTandemRepeat>> getRepeatMap();
-	
-	abstract protected void mapFile(String fileName);
-	
-	abstract protected byte[] findRepeat(LinkedList<Byte> historyList);
+	abstract protected Map<String, T> mapFile(String fileName);
 	
 }
