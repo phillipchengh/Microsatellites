@@ -9,16 +9,33 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.Set;
 
 public class SerialRepeatReader extends RepeatReader {
 
-	public SerialRepeatReader() {
-		this(Default.READ_BUF_SIZE, Default.SHORT_READ_LEN, Default.COVERAGE, Default.MIN_PAT_LEN, Default.MAX_PAT_LEN, Default.MIN_REPEATS);
+	abstract public static class Builder<T extends Builder<T>> extends RepeatReader.Builder<T> {
+
+		public SerialRepeatReader build() {
+			return new SerialRepeatReader(this);
+		}		
+	}
+
+	private static class Builder2 extends Builder<Builder2> {
+
+		@Override
+		protected Builder2 self() {
+			return this;
+		}
 	}
 	
-	public SerialRepeatReader(int bufSize, int readSize, int coverage, int minPat, int maxPat, int minRepeats) {
-		super(bufSize, readSize, coverage, minPat, maxPat, minRepeats);
+	public static Builder<?> builder() {
+		return new Builder2();
+	}
+
+	public SerialRepeatReader(Builder<?> sb) {
+		super(sb);
 	}
 	
 	public HashMap<String, ShortTandemRepeat> readFile(String fileName) {
@@ -32,7 +49,7 @@ public class SerialRepeatReader extends RepeatReader {
 			bis = new BufferedInputStream(is);
 			raf = new RandomAccessFile(stripped, "r");
 			long seqLen = raf.length();
-			long numReads = (seqLen/shortReadSize)*coverage;
+			long numReads = (seqLen/readSize)*coverage;
 			LinkedList<Byte> history = new LinkedList<Byte>();
 			for (int i = 0; i < maxPat*2; i++) {
 				history.add((byte) 0);
@@ -40,6 +57,13 @@ public class SerialRepeatReader extends RepeatReader {
 			System.out.println("Conducting coverage " + coverage + "x " + "(Number of Reads: " + numReads + ")" + " short reads on \"" + fileName + "\"...");
 			for (long j = 0; j < numReads; j++) {
 				mapShortRead(repeatMap, raf, seqLen, history);
+			}
+			Set<String> pats = repeatMap.keySet();
+			Iterator<String> iter = pats.iterator();
+			while (iter.hasNext()) {
+				String pat = iter.next();
+				ShortTandemRepeat str = repeatMap.get(pat);
+				str.setRepeats(str.getRepeats()/coverage);
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -63,8 +87,8 @@ public class SerialRepeatReader extends RepeatReader {
 		byte[] repeat = null;
 		int repeatIdx = 0;
 		int numRepeat = 0;
-		if ((seqPos + shortReadSize) < seqLen) {
-			maxRead = shortReadSize;
+		if ((seqPos + readSize) < seqLen) {
+			maxRead = readSize;
 		} else {
 			maxRead = (int) (seqLen - seqPos);
 		}
@@ -114,7 +138,7 @@ public class SerialRepeatReader extends RepeatReader {
 			os = new FileOutputStream(temp);
 			bos = new BufferedOutputStream(os);
 			System.out.println("Stripping out \"" + fileName + "\"...");
-			byte[] buf = new byte[readBufSize];
+			byte[] buf = new byte[bufSize];
 			int numBytes;
 			while (bis.available() > 0) {
 				numBytes = bis.read(buf);

@@ -6,17 +6,31 @@ import java.io.InputStream;
 import java.util.HashMap;
 import java.util.LinkedList;
 
-public class SerialRepeatMapper extends RepeatMapper<LinkedList<ShortTandemRepeat>> {
+public class SerialRepeatMapper extends RepeatMapper {
 
-	public SerialRepeatMapper() {
-		this(Default.READ_BUF_SIZE, Default.MIN_PAT_LEN, Default.MAX_PAT_LEN, Default.MIN_REPEATS);
+	abstract public static class Builder<T extends Builder<T>> extends RepeatMapper.Builder<T> {
+
+		public SerialRepeatMapper build() {
+			return new SerialRepeatMapper(this);
+		}		
 	}
 
-	public SerialRepeatMapper(int bufSize, int minPat, int maxPat, int minRepeats) {
-		super(bufSize, minPat, maxPat, minRepeats);
+	private static class Builder2 extends Builder<Builder2> {
+
+		@Override
+		protected Builder2 self() {
+			return this;
+		}
 	}
 	
-	@Override
+	public static Builder<?> builder() {
+		return new Builder2();
+	}
+
+	public SerialRepeatMapper(Builder<?> sb) {
+		super(sb);
+	}
+	
 	protected HashMap<String, LinkedList<ShortTandemRepeat>> mapFile(String fileName) {
 		HashMap<String, LinkedList<ShortTandemRepeat>> repeatMap = new HashMap<String, LinkedList<ShortTandemRepeat>>();
 		InputStream is = null;
@@ -25,7 +39,7 @@ public class SerialRepeatMapper extends RepeatMapper<LinkedList<ShortTandemRepea
 			is = this.getClass().getResourceAsStream(fileName);
 			bis = new BufferedInputStream(is);
 			System.out.println("Mapping \"" + fileName + "\"...");
-			byte[] buf = new byte[readBufSize];
+			byte[] buf = new byte[bufSize];
 			int numBytes = bis.read(buf);
 			MapParam next = mapBuf(repeatMap, buf, numBytes, null);
 			while (bis.available() > 0) {
